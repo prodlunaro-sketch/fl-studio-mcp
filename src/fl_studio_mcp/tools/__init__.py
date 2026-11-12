@@ -1,0 +1,27 @@
+"""FL Studio MCP tools."""
+
+from fl_studio_mcp.tools.advanced import register_advanced_tools
+from fl_studio_mcp.tools.audio_feedback import register_audio_feedback_tools
+from fl_studio_mcp.tools.channels import register_channel_tools
+from fl_studio_mcp.tools.fullcontrol import register_fullcontrol_tools
+from fl_studio_mcp.tools.mixer import register_mixer_tools
+from fl_studio_mcp.tools.patterns import register_pattern_tools
+from fl_studio_mcp.tools.piano_roll import register_piano_roll_tools
+from fl_studio_mcp.tools.plugins import register_plugin_tools
+from fl_studio_mcp.tools.sequencer import register_sequencer_tools
+from fl_studio_mcp.tools.transport import register_transport_tools
+from fl_studio_mcp.tools.windows_adapter import register_windows_adapter_tools
+
+__all__ = [
+    "register_transport_tools",
+    "register_mixer_tools",
+    "register_channel_tools",
+    "register_plugin_tools",
+    "register_pattern_tools",
+    "register_sequencer_tools",
+    "register_piano_roll_tools",
+    "register_advanced_tools",
+    "register_fullcontrol_tools",
+    "register_audio_feedback_tools",
+    "register_windows_adapter_tools",
+]
