@@ -1,165 +1,78 @@
 # FL Studio MCP
 
-An [MCP](https://modelcontextprotocol.io) server that lets AI assistants
-**control FL Studio fully** — transport, mixer, channel rack, plugins,
-patterns, step sequencer, piano roll, and the entire FL scripting API —
-over a virtual MIDI trigger + JSON command channel.
+FL Studio MCP connects an MCP client to FL Studio through a virtual MIDI port and a small controller script that runs inside FL Studio. It lets an assistant inspect and edit many parts of an open project, including transport, mixer, channels, patterns, notes, and plugin parameters.
 
-> **Version 1.1.1** · MIT License · © 2026 Ziad Salah (Zierax)
+The repository also includes an optional Windows desktop adapter. It can take screenshots, try a sample drop into the Playlist, use the Plugin Picker, and render a saved project through FL Studio's command-line renderer. Those actions depend on the visible Windows desktop and should be checked in FL Studio after they run.
 
-[![Listed on MCP Market](https://mcpmarket.com/badge/server/fl-studio-3.svg)](https://mcpmarket.com/server/fl-studio-3?utm_source=readme&utm_medium=badge)
+This project is maintained at [prodlunaro-sketch/fl-studio-mcp](https://github.com/prodlunaro-sketch/fl-studio-mcp). It builds on the MIT-licensed work by [Zierax](https://github.com/Zierax/fl-studio-mcp) and earlier contributors. See [Credits](docs/MENTION.md) for the source projects.
 
----
+## What it can do
 
-## Why this exists
+- Control playback, recording, tempo, loop mode, and song position.
+- Read and change mixer tracks, channel settings, patterns, step sequences, and piano-roll notes.
+- Inspect and change parameters for plugins already loaded in the project.
+- Discover functions exposed by the installed FL Studio scripting API and call them through the raw API tools.
+- Read project, playlist, mixer, channel, and transport state.
+- Analyze an exported audio file with FFmpeg, including loudness, peaks, duration, and silence intervals.
+- On Windows, use optional desktop controls for screenshots, sample drops, plugin insertion, and rendering a saved `.flp` file.
 
-FL Studio's scripting API is powerful but unreachable from Python. This
-project bridges the gap:
-
-```
-MCP client (Claude, Cursor, ...)
-        │  stdio (JSON-RPC)
-        ▼
-   FastMCP server (Python)          ── the 164 tools
-        │  writes mcp_command.json + triggers MIDI note 127
-        ▼
-   FL Studio controller script      ── runs INSIDE FL Studio,
-        │  executes the FL scripting API, writes mcp_response.json
-        ▼
-   FL Studio project                ── the DAW itself
-```
-
-## Features
-
-This fork also includes `fl_compatibility_report` for runtime API discovery
-and `fl_analyze_export`, a local FFmpeg-backed audio feedback tool for
-measuring loudness, peaks, and silent passages in a bounce. On Windows, the
-optional UI adapter can drop samples into the Playlist, use the Plugin Picker,
-and start a separate FL Studio command-line render job.
-See [Audio feedback and automation scope](docs/AUDIO_FEEDBACK.md).
-
-| Area | Capabilities |
-|------|--------------|
-| **Transport** | Play, stop, record, song position/length, loop mode, playback speed, tempo, shuffle |
-| **Mixer** | Volume, pan, mute, solo, arm, name, color, stereo separation; routing, sends, EQ, FX slots, peaks |
-| **Channel rack** | List/inspect/select channels, live note triggering, volume/pan/mute/solo/name/color, pitch, step sequences, shuffle |
-| **Patterns** | Create, list, select, rename, clone, clear, set length |
-| **Plugins** | Name, parameter list/get/set, presets, colors |
-| **Step sequencer** | Read/write/clear step patterns with per-step pitch, velocity, pan |
-| **Piano roll** | Add notes/chords (exact timing), delete, clear, read state |
-| **Playlist** | Track names, colors, mute/solo/select, full playlist state |
-| **Advanced** | Raw access to every function of every FL API module, undo history, project info, markers, device info, UI automation hints |
+FL Studio's scripting API cannot create a channel or load a sample into one. The Windows adapter can attempt a sample drop into the Playlist, and it can open the Plugin Picker. These UI actions need visual review. See [Limitations](docs/LIMITATIONS.md).
 
 ## Requirements
 
-- **FL Studio 20.7+** on Windows or macOS (tested on FL Studio 2025 / Windows)
-- **Python 3.10+**
-- **[uv](https://github.com/astral-sh/uv)** (recommended package manager)
-- A virtual MIDI port:
-  - Windows: [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html)
-  - macOS: IAC Driver (enable it in Audio MIDI Setup)
+- FL Studio 20.7 or newer, with its MIDI controller scripting API.
+- Python 3.10 or newer and [uv](https://docs.astral.sh/uv/).
+- A virtual MIDI port: [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html) on Windows, or the IAC Driver on macOS.
+- For Windows desktop tools, Windows with FL Studio open in the same logged-in desktop session. Install the optional `windows-ui` dependencies.
+- For audio analysis, `ffmpeg` and `ffprobe` available on `PATH`.
 
 ## Quick start
 
-### 1. Install the controller script in FL Studio
-
-Run the installer, or copy `fl_controller/device_FLStudioMCP.py` manually (see
-[docs/SETUP.md](docs/SETUP.md) for both options):
+Clone the repository, install Python dependencies, and install the FL Studio controller script. Full Windows and macOS instructions are in [Setup](docs/SETUP.md).
 
 ```powershell
-# Windows (PowerShell)
-.\install.ps1
+uv sync
 ```
 
-```bash
-# macOS / Linux
-./install.sh
+For Windows desktop tools, install the optional dependencies:
+
+```powershell
+uv sync --extra windows-ui
 ```
 
-### 2. Point FL Studio at the script
+Start loopMIDI and add a port. Copy `fl_controller/device_FLStudioMCP.py` into FL Studio's `Settings/Hardware/FLStudioMCP` folder, then select **FL Studio MCP Controller** for that MIDI input in FL Studio's MIDI settings. Restart FL Studio or update its MIDI scripts.
 
-1. Restart FL Studio (or press **Options → Update MIDI scripts**).
-2. **Options → MIDI Settings** → under **Input**, select your virtual port
-   (e.g. `FLStudioMCP 1`).
-3. Set its **Controller type** to `FL Studio MCP Controller` and enable the
-   port.
+Configure your MCP client to launch the server from this repository. The command is:
 
-### 3. Connect the server
-
-```json
-{
-  "mcpServers": {
-    "fl-studio": {
-      "command": "uv",
-      "args": ["run", "--directory", "D:\\Axioms\\FL-MCP", "fl-studio-mcp"]
-    }
-  }
-}
+```text
+uv run --directory <path-to-this-repository> fl-studio-mcp
 ```
 
-Adjust `--directory` to your clone (or `/path/to/FL-MCP` on macOS/Linux).
-The server is a standard stdio MCP server — any MCP client can use it.
+The exact configuration format depends on the MCP client. The setup guide includes a JSON example. After connecting, call `fl_connection_status` to check the MIDI bridge.
 
-Then talk to it in natural language:
-
-> "Connect to FL Studio, set the tempo to 140 BPM and create a pattern named 'Drop'."
-
-> "Program a kick on steps 0, 4, 8, 12 of channel 0 and a snare on steps 4 and 12 of channel 1."
-
-> "Set mixer track 3 volume to 80%, pan it slightly left, and solo track 1."
-
-## Documentation
-
-Everything lives in [docs/](docs/):
+## Guides
 
 | Document | Contents |
-|----------|----------|
-| [docs/SETUP.md](docs/SETUP.md) | Full installation: Windows, macOS, manual vs installer, first run |
-| [docs/TOOLS.md](docs/TOOLS.md) | The complete tool catalog with arguments and examples |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the MIDI + JSON bridge and hot-reload work |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Fixes for the problems people actually hit |
-| [docs/LIMITATIONS.md](docs/LIMITATIONS.md) | What the FL Studio API can and cannot do |
-| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Adding tools, versioning, releasing |
-| [docs/MENTION.md](docs/MENTION.md) | Credits and backbone projects |
-
-## Known limitations (summary)
-
-- The FL Studio scripting API **cannot create channels or load audio files** —
-  the server controls whatever already exists in the project.
-- **Playlist clips cannot be placed programmatically** — pattern management is
-  fully automated, arranging on the timeline is not.
-- Live-triggered notes are not persisted unless recording is on; for written
-  music use the step sequencer or piano roll tools.
-- Windows UI actions need FL Studio visible in the logged-in desktop session.
-  Playlist drops require coordinates from a fresh screenshot and are not saved
-  automatically. Review and save a project copy after the drop.
-
-Full details: [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
+| --- | --- |
+| [User guide](docs/USER_GUIDE.md) | Setup checklist, working features, examples, and known limits |
+| [Setup](docs/SETUP.md) | Windows and macOS installation instructions |
+| [Tool catalog](docs/TOOLS.md) | MCP tools grouped by function |
+| [Architecture](docs/ARCHITECTURE.md) | MIDI and JSON bridge, controller script, and hot reload |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common connection and setup issues |
+| [Limitations](docs/LIMITATIONS.md) | FL Studio API limits and Windows UI adapter scope |
+| [Development](docs/DEVELOPMENT.md) | Project structure and contribution notes |
 
 ## Project layout
 
+```text
+fl_controller/                 Script loaded by FL Studio
+src/fl_studio_mcp/server.py    MCP server entry point
+src/fl_studio_mcp/tools/       Transport, mixer, channel, pattern, and other tools
+scripts/                       Setup helpers and piano-roll script
+docs/                          Setup and feature documentation
 ```
-fl_controller/
-  device_FLStudioMCP.py   ← the script that runs inside FL Studio (hot-reloadable)
-src/fl_studio_mcp/
-  server.py               ← MCP entry point + connection tools
-  utils/                  ← MIDI trigger, JSON command channel, connection
-  tools/                  ← 9 tool groups: transport, mixer, channels, patterns,
-                             plugins, sequencer, piano_roll, advanced, fullcontrol
-scripts/                  ← installer helpers (.pyscript legacy, .ps1/.sh)
-docs/                     ← this documentation
-install.ps1 / install.sh  ← one-command installers
-```
-
-## Credits
-
-Built on the backbone of
-[karl-andres/fl-studio-mcp](https://github.com/karl-andres/fl-studio-mcp)
-(piano roll integration inspired by
-[calvinw/fl-studio-mcp](https://github.com/calvinw/fl-studio-mcp)). FL API
-reference: [IL-Group/FL-Studio-API-Stubs](https://github.com/IL-Group/FL-Studio-API-Stubs).
-See [docs/MENTION.md](docs/MENTION.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE) and [Credits](docs/MENTION.md).
+
